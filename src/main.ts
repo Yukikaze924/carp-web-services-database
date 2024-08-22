@@ -1,8 +1,9 @@
 import express from 'express'
 import cors from 'cors'
-import connection from './database/mysql.js'
+import pool from './database/mysql.js'
 import config from './config/config.js'
 import { user } from './types/user.js'
+import { RowDataPacket } from 'mysql2'
 
 // const app = express()
 // const ipAddress: string = config.HOST_URL
@@ -26,18 +27,20 @@ export class Main
     }
 
     public static main(args: string[]): void
-    { 
-        console.log({ ...args });
-        
+    {     
         if (!args.includes('--skip-mysql'))
         {
-            connection.connect(err => {
-                if (err) {
-                    console.error('Error connecting to MySQL:', err.stack);
-                    return;
-                }
-                console.log('Connected to MySQL as id', connection.threadId);
-            });
+            pool.getConnection((_, conn) => {
+                conn.connect(err => {
+                    if (err) {
+                        console.error('Error connecting to MySQL:', err.stack);
+                        return;
+                    }
+                    console.log('Connected to MySQL as id', conn.threadId);
+                })
+
+                conn.release()
+            })
         }
 
         this.app.use(cors(this.corsOptions), express.json()) // JSON中间件不传就会解析不了Body - 返回undefined // cors解决跨域请求安全政策
@@ -45,14 +48,17 @@ export class Main
         this.app.get('/user/:account', (req, res) =>
         {
             const account = req.params.account
-            connection.query(`SELECT * FROM users WHERE account='${account}'`, (error, results) => {
-                if (error) {
-                    return res.status(500).send(error);
-                }
-                const user = results[0]
-                const base64String = (Buffer.from(user.avatar).toString())
-                user.avatar=base64String
-                res.status(200).json(user)
+            pool.getConnection((_, conn) =>
+            {
+                conn.query<RowDataPacket[]>(`SELECT * FROM users WHERE account='${account}'`, (error, results) => {
+                    if (error) {
+                        return res.status(500).send(error);
+                    }
+                    const user = results[0]
+                    const base64String = (Buffer.from(user.avatar).toString())
+                    user.avatar=base64String
+                    res.status(200).json(user)
+                })
             })
         })
 
@@ -80,14 +86,17 @@ export class Main
 
             // 更新数据库中的数据
             const query = 'UPDATE users SET avatar = ? WHERE account = ?';
-            connection.query(query, [image, account], (error: any, results: any, fields: any) => {
-                if (error) {
-                    console.error('Error updating data: ', error);
-                    res.status(500).send('Error updating data');
-                    return;
-                }
-                res.send('Data updated successfully');
-            });
+            pool.getConnection((_, conn) =>
+            {
+                conn.query(query, [image, account], (error, results, fields) => {
+                    if (error) {
+                        console.error('Error updating data: ', error);
+                        res.status(500).send('Error updating data');
+                        return;
+                    }
+                    res.send('Data updated successfully');
+                });
+            })
         })
             
         this.app.listen(this.port, this.ipAddress, () => {

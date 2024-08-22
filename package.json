@@ -2,7 +2,7 @@
   "name": "express-carp",
   "version": "0.1.0",
   "description": "None",
-  "type": "module",
+  "type": "commonjs",
   "scripts": {
     "start": "node ./dist/index.js",
     "build": "tsc",
@@ -13,11 +13,13 @@
   "dependencies": {
     "cors": "^2.8.5",
     "express": "^4.19.2",
+    "mysql": "^2.18.1",
     "mysql2": "^3.11.0"
   },
   "devDependencies": {
     "@types/cors": "^2.8.17",
     "@types/express": "^4.17.21",
+    "@types/mysql": "^2.15.26",
     "@types/node": "^22.5.0",
     "typescript": "^5.5.4"
   }
