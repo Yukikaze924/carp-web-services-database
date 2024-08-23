@@ -4,7 +4,7 @@
   "description": "None",
   "type": "commonjs",
   "scripts": {
-    "start": "node ./dist/index.js",
+    "start": "npm run build && npm run dev",
     "build": "tsc && tsc-alias",
     "dev": "node ./dist/index.js"
   },

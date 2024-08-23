@@ -1,8 +1,8 @@
-export interface user
+export interface User
 {
     account: string
     nickname: string
     password: string
-    age: number
-    avatar: string
+    age?: number
+    avatar?: string
 }

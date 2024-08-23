@@ -1,12 +1,10 @@
-import express, { Request, Response } from 'express'
+import express, { Request, response, Response } from 'express'
 import cors from 'cors'
 import pool from '@database/mysql'
 import config from '@config/config'
 import multer from 'multer'
-import { user } from '@models/user'
+import { User } from '@type/User'
 import { RowDataPacket } from 'mysql2'
-import fs from 'fs'
-import { buffer } from 'stream/consumers'
 
 
 export class Main
@@ -67,11 +65,18 @@ export class Main
             conn.query<RowDataPacket[]>(`SELECT * FROM users WHERE account='${account}'`, (error, results) =>
             {
                 if (error) {
+                    console.warn("DB ERR [handleUserRequest]");
                     return response.status(500).send(error);
                 }
+                if (results.length === 0) {
+                    console.log("User not found in DB. returning a empty Obj.");
+                    return response.status(200).send({})
+                }
+
                 const user = results[0]
                 if (!user.avatar) {
-                    return response.status(500).send("USER HAS NO AVATAR\n\nERR 500")
+                    return response.status(200).json(user)
+                    // return response.status(404).send("USER HAS NO AVATAR\n\nERR 500")
                 }
                 const base64String = (Buffer.from(user.avatar).toString())
                 user.avatar=base64String
@@ -84,19 +89,34 @@ export class Main
 
     private static handleUserRegister(req: Request, res: Response)
     {
-        const user = req.body;
+        const user: User = req.body;
         console.log(user);
 
         // 验证对象格式
-        if (this.validateUser(user))
+        // if (this.validateUser(user))
+        // {
+        //     res.status(200).send(`Received valid user object: ${JSON.stringify(user)}`);
+        // }
+        // else
+        // {
+        //     res.status(400).send('Invalid user object format');
+        // }
+
+        // TODO: Mysql 注册账户 
+        pool.getConnection((_, conn) =>
         {
-            res.status(200).send(`Received valid user object: ${JSON.stringify(user)}`);
-        }
-        else
-        {
-            res.status(400).send('Invalid user object format');
-        }
-        // TODO: Mysql 注册账户
+            const sql = "INSERT IGNORE INTO users (account, nickname, password) VALUES (?, ?, ?)"
+            conn.query(sql, [user.account, user.nickname, user.password], (err, results, fields) =>
+            {
+                if (err) {
+                    console.warn("DB ERR [handleUserRegister]");
+                    return res.status(500).send("INVALID DATA EXCEPTION")
+                }
+                res.status(200).send("200")
+            })
+
+            conn.release()
+        })
     }
 
     private static handleAvatarUpdate(request: Request, response: Response)
@@ -128,7 +148,7 @@ export class Main
     }
 
 
-    private static validateUser(user: user)
+    private static validateUser(user: User)
     {
         const requiredKeys = ['account', 'nickname', 'password'];
         return requiredKeys.every(key => user.hasOwnProperty(key));

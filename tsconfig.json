@@ -15,7 +15,7 @@
       "@/*": ["./*"],
       "@config/*": ["config/*"],
       "@database/*": ["database/*"],
-      "@models/*": ["models/*"],
+      "@type/*": ["type/*"],
     }
   },
   "include": ["src/**/*"],
