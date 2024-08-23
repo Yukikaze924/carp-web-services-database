@@ -1,22 +1,16 @@
-import express from 'express'
+import express, { Request, Response } from 'express'
 import cors from 'cors'
-import pool from './database/mysql.js'
-import config from './config/config.js'
-import { user } from './types/user.js'
+import pool from '@database/mysql'
+import config from '@config/config'
+import multer from 'multer'
+import { user } from '@models/user'
 import { RowDataPacket } from 'mysql2'
+import fs from 'fs'
+import { buffer } from 'stream/consumers'
 
-// const app = express()
-// const ipAddress: string = config.HOST_URL
-// const port: number = config.HOST_PORT
-// const corsOptions =
-// {
-//     origin: '*',
-//     optionsSuccessStatus: 200 // 对于一些旧版浏览器的兼容处理
-// };
 
 export class Main
 {
-    private static instance: Main
     private static app = express()
     private static ipAddress: string = config.HOST_URL
     private static port: number = config.HOST_PORT
@@ -24,6 +18,12 @@ export class Main
     {
         origin: '*',
         optionsSuccessStatus: 200 // 对于一些旧版浏览器的兼容处理
+    }
+    private static upload;
+
+    static {
+        const storage = multer.memoryStorage()
+        this.upload = multer({ storage: storage })
     }
 
     public static main(args: string[]): void
@@ -45,66 +45,90 @@ export class Main
 
         this.app.use(cors(this.corsOptions), express.json()) // JSON中间件不传就会解析不了Body - 返回undefined // cors解决跨域请求安全政策
 
-        this.app.get('/user/:account', (req, res) =>
-        {
-            const account = req.params.account
-            pool.getConnection((_, conn) =>
-            {
-                conn.query<RowDataPacket[]>(`SELECT * FROM users WHERE account='${account}'`, (error, results) => {
-                    if (error) {
-                        return res.status(500).send(error);
-                    }
-                    const user = results[0]
-                    const base64String = (Buffer.from(user.avatar).toString())
-                    user.avatar=base64String
-                    res.status(200).json(user)
-                })
-            })
-        })
+        this.app.get('/user/:account', this.handleUserRequest)
 
-        this.app.post('/user', (req, res) =>
-        {
-            const user = req.body;
-            console.log(user);
+        this.app.post('/user', this.handleUserRegister)
 
-            // 验证对象格式
-            if (this.instance.validateUser(user))
-            {
-                res.status(200).send(`Received valid user object: ${JSON.stringify(user)}`);
-            }
-            else
-            {
-                res.status(400).send('Invalid user object format');
-            }
-            // TODO: Mysql 注册账户
-        })
+        this.app.post('/avatar/:account', this.upload.single('file'), this.handleAvatarUpdate)
 
-        this.app.post('/avatar/:account', (req, res) =>
-        {
-            const account = req.params.account
-            const image = req.body
-
-            // 更新数据库中的数据
-            const query = 'UPDATE users SET avatar = ? WHERE account = ?';
-            pool.getConnection((_, conn) =>
-            {
-                conn.query(query, [image, account], (error, results, fields) => {
-                    if (error) {
-                        console.error('Error updating data: ', error);
-                        res.status(500).send('Error updating data');
-                        return;
-                    }
-                    res.send('Data updated successfully');
-                });
-            })
-        })
+        this.app.get('/', this.onRootRequested)
             
-        this.app.listen(this.port, this.ipAddress, () => {
+        this.app.listen(this.port, this.ipAddress, () =>
+        {
             console.log(`Application listening on [${this.ipAddress}]:${this.port}`)
         })
     }
 
-    private validateUser(user: user)
+    private static handleUserRequest(request: Request, response: Response)
+    {
+        const account = request.params.account
+        pool.getConnection((_, conn) =>
+        {
+            conn.query<RowDataPacket[]>(`SELECT * FROM users WHERE account='${account}'`, (error, results) =>
+            {
+                if (error) {
+                    return response.status(500).send(error);
+                }
+                const user = results[0]
+                if (!user.avatar) {
+                    return response.status(500).send("USER HAS NO AVATAR\n\nERR 500")
+                }
+                const base64String = (Buffer.from(user.avatar).toString())
+                user.avatar=base64String
+                response.status(200).json(user)
+            })
+
+            conn.release()
+        })
+    }
+
+    private static handleUserRegister(req: Request, res: Response)
+    {
+        const user = req.body;
+        console.log(user);
+
+        // 验证对象格式
+        if (this.validateUser(user))
+        {
+            res.status(200).send(`Received valid user object: ${JSON.stringify(user)}`);
+        }
+        else
+        {
+            res.status(400).send('Invalid user object format');
+        }
+        // TODO: Mysql 注册账户
+    }
+
+    private static handleAvatarUpdate(request: Request, response: Response)
+    {
+        const account = request.params.account
+        const image = request.file
+
+        const base64String = image?.buffer.toString('base64')
+        // 更新数据库中的数据
+        const query = 'UPDATE users SET avatar = ? WHERE account = ?';
+        pool.getConnection((_, conn) =>
+        {
+            conn.query(query, [base64String, account], (error, results, fields) => {
+                if (error) {
+                    console.error('Error updating data: ', error);
+                    response.status(500).send('Error updating data');
+                    return;
+                }
+                response.send('Data updated successfully');
+            });
+
+            conn.release()
+        })
+    }
+
+    private static onRootRequested(request: Request, response: Response)
+    {
+        response.status(200).send("Visit <a href='https://doc.carp.org' target='_blank'>here</a> to learn more.")
+    }
+
+
+    private static validateUser(user: user)
     {
         const requiredKeys = ['account', 'nickname', 'password'];
         return requiredKeys.every(key => user.hasOwnProperty(key));

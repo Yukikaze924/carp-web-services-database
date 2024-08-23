@@ -9,7 +9,14 @@
     "skipLibCheck": true,
     "forceConsistentCasingInFileNames": true,
     "allowJs": true,
-    "checkJs": false
+    "checkJs": false,
+    "baseUrl": "./src",
+    "paths": {
+      "@/*": ["./*"],
+      "@config/*": ["config/*"],
+      "@database/*": ["database/*"],
+      "@models/*": ["models/*"],
+    }
   },
   "include": ["src/**/*"],
   "exclude": ["node_modules"]

@@ -1,4 +1,4 @@
-import { Main } from './main.js'
+import { Main } from '@/main'
 
 let args = process.argv.slice(2)
 

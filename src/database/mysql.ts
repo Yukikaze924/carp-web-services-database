@@ -1,12 +1,6 @@
 import mysql, { Pool } from 'mysql2';
 import { DB_URL, DB_USER, DB_PASSWORD, DB_NAME } from '../config/config.js';
 
-// const connection: Connection = mysql.createConnection({
-//     host: DB_URL,
-//     user: DB_USER,
-//     password: DB_PASSWORD,
-//     database: DB_NAME,
-// });
 
 // 创建连接池，设置连接池的参数
 const pool: Pool = mysql.createPool({
