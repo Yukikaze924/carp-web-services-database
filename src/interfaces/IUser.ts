@@ -1,4 +1,4 @@
-export interface User
+export interface IUser
 {
     account: string
     nickname: string

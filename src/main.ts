@@ -1,10 +1,14 @@
-import express, { Request, response, Response } from 'express'
+import express, { Request, Response } from 'express'
 import cors from 'cors'
 import pool from '@database/mysql'
 import config from '@config/config'
 import multer from 'multer'
-import { User } from '@type/User'
+import { IUser } from '@interfaces/IUser'
 import { RowDataPacket } from 'mysql2'
+import BadResponse from './implements/BadResponse'
+import ResponseType from './enums/ResponseType'
+import ProductsResponse from './implements/ProductsResponse'
+import IProduct from './interfaces/IProduct'
 
 
 export class Main
@@ -45,19 +49,25 @@ export class Main
 
         this.app.get('/user/:account', this.handleUserRequest)
 
+        this.app.get('/uid/:uid', this.handleUserFetching)
+
         this.app.post('/user', this.handleUserRegister)
 
         this.app.post('/avatar/:account', this.upload.single('file'), this.handleAvatarUpdate)
 
+        this.app.get('/product/:id', this.handleGetProduct)
+
+        this.app.get('/products', this.handleGetProducts)
+
         this.app.get('/', this.onRootRequested)
-            
+
         this.app.listen(this.port, this.ipAddress, () =>
         {
             console.log(`Application listening on [${this.ipAddress}]:${this.port}`)
         })
     }
 
-    private static handleUserRequest(request: Request, response: Response)
+    static handleUserRequest(request: Request, response: Response)
     {
         const account = request.params.account
         pool.getConnection((_, conn) =>
@@ -66,7 +76,7 @@ export class Main
             {
                 if (error) {
                     console.warn("DB ERR [handleUserRequest]");
-                    return response.status(500).send(error);
+                    return response.status(500).send(new BadResponse(ResponseType.DBConnectionFailed, error.code, error.message));
                 }
                 if (results.length === 0) {
                     console.log("User not found in DB. returning a empty Obj.");
@@ -76,8 +86,39 @@ export class Main
                 const user = results[0]
                 if (!user.avatar) {
                     return response.status(200).json(user)
-                    // return response.status(404).send("USER HAS NO AVATAR\n\nERR 500")
                 }
+                
+                const base64String = (Buffer.from(user.avatar).toString())
+                user.avatar=base64String
+
+                response.status(200).json(user)
+            })
+
+            conn.release()
+        })
+    }
+
+    static handleUserFetching(request: Request, response: Response)
+    {
+        const uid = request.params.uid
+        pool.getConnection((_, conn) =>
+        {
+            conn.query<RowDataPacket[]>(`SELECT * FROM users WHERE uid='${uid}'`, (error, results) =>
+            {
+                if (error) {
+                    console.warn("DB ERR [handleUserRequest]");
+                    return response.status(500).send(new BadResponse(ResponseType.DBConnectionFailed, error.code, error.message));
+                }
+                if (results.length === 0) {
+                    console.log("User not found in DB. returning a empty Obj.");
+                    return response.status(200).send({})
+                }
+
+                const user = results[0]
+                if (!user.avatar) {
+                    return response.status(200).json(user)
+                }
+                
                 const base64String = (Buffer.from(user.avatar).toString())
                 user.avatar=base64String
                 response.status(200).json(user)
@@ -89,18 +130,8 @@ export class Main
 
     private static handleUserRegister(req: Request, res: Response)
     {
-        const user: User = req.body;
+        const user: IUser = req.body;
         console.log(user);
-
-        // 验证对象格式
-        // if (this.validateUser(user))
-        // {
-        //     res.status(200).send(`Received valid user object: ${JSON.stringify(user)}`);
-        // }
-        // else
-        // {
-        //     res.status(400).send('Invalid user object format');
-        // }
 
         // TODO: Mysql 注册账户 
         pool.getConnection((_, conn) =>
@@ -142,15 +173,57 @@ export class Main
         })
     }
 
-    private static onRootRequested(request: Request, response: Response)
+    static handleGetProduct(request: Request, response: Response)
+    {
+        const id: string = request.params.id
+
+        pool.getConnection((_, conn) =>
+        {
+            conn.query<RowDataPacket[]>(`SELECT * FROM products WHERE id='${id}'`, (error, results) =>
+            {
+                if (!error)
+                {
+                    return response.status(200).send(results[0])
+                }
+                else
+                {
+                    return response.status(500).send(error)
+                }
+            })
+
+            conn.release()
+        })
+    }
+
+    static handleGetProducts(_request: Request, response: Response)
+    {
+        pool.getConnection((_, conn) =>
+        {
+            conn.query<RowDataPacket[]>(`SELECT * FROM products;`, (error, results) =>
+            {
+                if (!error)
+                {
+                    return response.status(200).send(new ProductsResponse(ResponseType.Succeed, 200, results.length, results as IProduct[]))
+                }
+                else
+                {
+                    return response.status(500).send(error)
+                }
+            })
+
+            conn.release()
+        })
+    }
+
+    private static onRootRequested(_request: Request, response: Response)
     {
         response.status(200).send("Visit <a href='https://doc.carp.org' target='_blank'>here</a> to learn more.")
     }
 
 
-    private static validateUser(user: User)
-    {
-        const requiredKeys = ['account', 'nickname', 'password'];
-        return requiredKeys.every(key => user.hasOwnProperty(key));
-    }
+    // private static validateUser(user: IUser)
+    // {
+    //     const requiredKeys = ['account', 'nickname', 'password'];
+    //     return requiredKeys.every(key => user.hasOwnProperty(key));
+    // }
 }

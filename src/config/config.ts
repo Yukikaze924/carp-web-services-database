@@ -1,5 +1,7 @@
+/** HOST */
 export const HOST_URL = "::"
 export const HOST_PORT = 8080
+/** DATABASE */
 export const DB_URL = "localhost"
 export const DB_USER = "root"
 export const DB_PASSWORD = ""

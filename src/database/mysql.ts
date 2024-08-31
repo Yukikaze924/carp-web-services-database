@@ -1,5 +1,5 @@
 import mysql, { Pool } from 'mysql2';
-import { DB_URL, DB_USER, DB_PASSWORD, DB_NAME } from '../config/config.js';
+import { DB_URL, DB_USER, DB_PASSWORD, DB_NAME } from '@config/config';
 
 
 // 创建连接池，设置连接池的参数
